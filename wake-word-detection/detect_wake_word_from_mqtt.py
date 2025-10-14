@@ -17,6 +17,7 @@ import numpy as np
 from openwakeword.model import Model
 import argparse
 import paho.mqtt.client as mqtt
+import paho.mqtt.publish as mqtt_publish
 import base64
 
 # Parse input arguments
@@ -48,7 +49,9 @@ n_models = len(owwModel.models.keys())
 
 broker = "localhost"
 port = 1883
-topic = "audio/stream"
+topic_wakeword = "wakeword/detected"
+topic_audio = "audio/stream"
+SCORE_THRESHOLD = 0.5
 
 def on_message(client, userdata, msg):
     decoded_chunk = base64.b64decode(msg.payload)
@@ -69,8 +72,10 @@ def on_message(client, userdata, msg):
         # Add scores in formatted table
         scores = list(owwModel.prediction_buffer[mdl])
         curr_score = format(scores[-1], '.20f').replace("-", "")
+        if scores[-1] > SCORE_THRESHOLD:
+            mqtt_publish.single(topic_wakeword, True, hostname=broker)
 
-        output_string_header += f"""{mdl}{" "*(n_spaces - len(mdl))}   | {curr_score[0:5]} | {"--"+" "*20 if scores[-1] <= 0.5 else "Wakeword Detected!"}
+        output_string_header += f"""{mdl}{" "*(n_spaces - len(mdl))}   | {curr_score[0:5]} | {"--"+" "*20 if scores[-1] <= SCORE_THRESHOLD else "Wakeword Detected!"}
         """
 
     # Print results table
@@ -81,7 +86,7 @@ def on_message(client, userdata, msg):
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_message = on_message
 client.connect(broker, port, 60)
-client.subscribe(topic)
+client.subscribe(topic_audio)
 
 # Generate output string header
 print("\n\n")

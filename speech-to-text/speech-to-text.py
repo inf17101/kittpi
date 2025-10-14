@@ -3,8 +3,24 @@ import argparse
 import paho.mqtt.client as mqtt
 import base64
 import json
+from queue import Queue, Empty
+import signal
+from threading import Event, Thread
 
 from vosk import Model, KaldiRecognizer
+
+# Create a global event that can be used by other threads
+stop_event = Event()
+client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+
+def handle_stop_signals(signum, frame):
+    print(f"Received stop signal, shutting down gracefully...")
+    stop_event.set()
+    client.disconnect()
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, handle_stop_signals)
+signal.signal(signal.SIGINT, handle_stop_signals)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -18,32 +34,59 @@ if args.model is None:
 else:
     model = Model(lang=args.model)
 
-
 broker = "localhost"
 port = 1883
-topic = "audio/stream"
+topic_wakeword = "wakeword/detected"
+topic_audio = "audio/stream"
 
 rec = KaldiRecognizer(model, args.samplerate)
+text_queue = Queue()
+wakeword_event = Event()
+SILENCE_TIME = 2
 
 def on_message(client, userdata, msg):
-    decoded_chunk = base64.b64decode(msg.payload)
-    # Get audio
-    # audio = np.frombuffer(decoded_chunk, dtype=np.int16)
-    audio = bytes(decoded_chunk)
-    if rec.AcceptWaveform(audio):
-        full_result = json.loads(rec.Result())
-        full_result = full_result["text"]
-        if full_result:
-            print(full_result)
+    msg_topic = str(msg.topic)
+    if msg_topic == topic_audio:
+        if wakeword_event.is_set():
+            decoded_chunk = base64.b64decode(msg.payload)
+            # Get audio
+            audio = bytes(decoded_chunk)
+            if rec.AcceptWaveform(audio):
+                full_result = json.loads(rec.Result())
+                full_result = full_result["text"]
+                if full_result:
+                    # print(full_result)
+                    text_queue.put(full_result)
+            # else:
+            #     partial_part = json.loads(rec.PartialResult())
+            #     partial_part = partial_part["partial"]
+                # if partial_part:
+                #     # print(partial_part)
+                #     text_queue.put(partial_part)
+    elif msg_topic == topic_wakeword:
+        if not wakeword_event.is_set():
+            print("Wakeword was detected. Start speech-to-text.")
+            wakeword_event.set()
     else:
-        partial_part = json.loads(rec.PartialResult())
-        partial_part = partial_part["partial"]
-        if partial_part:
-            print(partial_part)
+        print(f"Ignoring message from unknown topic '{msg_topic}'.")
 
+def forward_stt():
+    text = ""
+    while not stop_event.is_set():
+        try:
+            text_part = text_queue.get(timeout=SILENCE_TIME)
+            text += text_part
+        except Empty:
+            if text:
+                print(f"No text from stt since '{SILENCE_TIME}'. Forwarding input text: '{text}'")
+                text = ""
+                wakeword_event.clear()
 
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_message = on_message
 client.connect(broker, port, 60)
-client.subscribe(topic)
+client.subscribe(topic_wakeword)
+client.subscribe(topic_audio)
+forward_stt_thread = Thread(target=forward_stt, daemon=True, name="forward-stt-thread")
+forward_stt_thread.start()
 client.loop_forever()
+forward_stt_thread.join()
