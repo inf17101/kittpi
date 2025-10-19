@@ -19,7 +19,7 @@ docker run --rm -it --net=host docker.io/eclipse-mosquitto:2
 Start the speech-to-text application:
 
 ```shell
-docker run --rm --net=host speech-to-text
+docker run -it --rm --net=host speech-to-text
 ```
 
 If not already running, start the `stream_mic_to_mqtt` script like described in [../stream-mic-to-mqtt/README.md](../stream-mic-to-mqtt/README.md).

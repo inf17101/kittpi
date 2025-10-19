@@ -1,6 +1,7 @@
 import numpy as np
 import argparse
 import paho.mqtt.client as mqtt
+import paho.mqtt.publish as mqtt_publish
 import base64
 import json
 from queue import Queue, Empty
@@ -38,6 +39,7 @@ broker = "localhost"
 port = 1883
 topic_wakeword = "wakeword/detected"
 topic_audio = "audio/stream"
+topic_instruction = "assistant/instruction"
 
 rec = KaldiRecognizer(model, args.samplerate)
 text_queue = Queue()
@@ -57,12 +59,6 @@ def on_message(client, userdata, msg):
                 if full_result:
                     # print(full_result)
                     text_queue.put(full_result)
-            # else:
-            #     partial_part = json.loads(rec.PartialResult())
-            #     partial_part = partial_part["partial"]
-                # if partial_part:
-                #     # print(partial_part)
-                #     text_queue.put(partial_part)
     elif msg_topic == topic_wakeword:
         if not wakeword_event.is_set():
             print("Wakeword was detected. Start speech-to-text.")
@@ -79,6 +75,7 @@ def forward_stt():
         except Empty:
             if text:
                 print(f"No text from stt since '{SILENCE_TIME}'. Forwarding input text: '{text}'")
+                mqtt_publish.single(topic_instruction, text, hostname=broker, port=port)
                 text = ""
                 wakeword_event.clear()
 

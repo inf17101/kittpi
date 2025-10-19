@@ -73,7 +73,7 @@ def on_message(client, userdata, msg):
         scores = list(owwModel.prediction_buffer[mdl])
         curr_score = format(scores[-1], '.20f').replace("-", "")
         if scores[-1] > SCORE_THRESHOLD:
-            mqtt_publish.single(topic_wakeword, True, hostname=broker)
+            mqtt_publish.single(topic_wakeword, True, hostname=broker, port=port)
 
         output_string_header += f"""{mdl}{" "*(n_spaces - len(mdl))}   | {curr_score[0:5]} | {"--"+" "*20 if scores[-1] <= SCORE_THRESHOLD else "Wakeword Detected!"}
         """
