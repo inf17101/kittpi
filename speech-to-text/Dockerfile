@@ -1,5 +1,5 @@
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS base
-ARG VOSK_DEFAULT_MODEL="vosk-model-small-en-us-0.15.zip"
+ARG VOSK_DEFAULT_MODEL="vosk-model-small-de-0.15.zip"
 WORKDIR /app
 
 # RUN apt-get update && apt-get install --no-install-recommends -y libspeexdsp-dev \
@@ -17,4 +17,4 @@ FROM base AS prod
 RUN mkdir -p /root/.cache/vosk \
     && curl -L https://alphacephei.com/vosk/models/${VOSK_DEFAULT_MODEL} -o /tmp/${VOSK_DEFAULT_MODEL} \
     && unzip -d /root/.cache/vosk /tmp/${VOSK_DEFAULT_MODEL}
-CMD ["python", "-u", "/app/speech-to-text.py", "--model", "en-us", "--samplerate", "16000"]
+CMD ["python", "-u", "/app/speech-to-text.py", "--model", "de", "--samplerate", "16000"]
