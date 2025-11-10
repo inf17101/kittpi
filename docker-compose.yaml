@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: mqtt-broker
+    network_mode: host
+    restart: unless-stopped
+
+  wake-word-detection:
+    build: ./wake-word-detection
+    image: wake-word-detection
+    container_name: wake-word-detection
+    network_mode: host
+    depends_on:
+      - mqtt
+    restart: unless-stopped
+
+  speech-to-text:
+    build: ./speech-to-text
+    image: speech-to-text
+    container_name: speech-to-text
+    network_mode: host
+    depends_on:
+      - mqtt
+      - wake-word-detection
+    restart: unless-stopped
+
+  home-assistant:
+    build: ./assistant
+    image: home-assistant
+    container_name: home-assistant
+    network_mode: host
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - mqtt
+      - wake-word-detection
+      - speech-to-text
+    restart: unless-stopped
