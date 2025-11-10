@@ -1,0 +1,6 @@
+# Python
+.venv
+
+# kokoro tts model
+kokoro-*
+voices-*

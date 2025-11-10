@@ -44,7 +44,7 @@ topic_instruction = "assistant/instruction"
 rec = KaldiRecognizer(model, args.samplerate)
 text_queue = Queue()
 wakeword_event = Event()
-SILENCE_TIME = 2
+SILENCE_TIME = 1
 
 def on_message(client, userdata, msg):
     msg_topic = str(msg.topic)

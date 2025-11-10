@@ -1,6 +1,9 @@
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS base
 WORKDIR /app
 
+# RUN apt-get update && apt-get install --no-install-recommends -y libspeexdsp-dev \
+#         && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 COPY . /app
 
 RUN uv venv \
@@ -9,8 +12,5 @@ RUN uv venv \
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Install NLTK punkt model during build
-RUN python -m nltk.downloader punkt_tab
-
 FROM base AS prod
-CMD ["python", "-u", "/app/assistant.py"]
+CMD ["python", "-u", "/app/text-to-speech.py"]
