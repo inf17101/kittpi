@@ -41,11 +41,11 @@ args=parser.parse_args()
 
 # Load pre-trained openwakeword models
 if args.model_path != "":
-    owwModel = Model(wakeword_models=[args.model_path], inference_framework=args.inference_framework, enable_speex_noise_suppression=False, vad_threshold=0.5)
+    wake_word_model = Model(wakeword_models=[args.model_path], inference_framework=args.inference_framework, enable_speex_noise_suppression=False, vad_threshold=0.5)
 else:
-    owwModel = Model(inference_framework=args.inference_framework, enable_speex_noise_suppression=False, vad_threshold=0.5)
+    wake_word_model = Model(inference_framework=args.inference_framework, enable_speex_noise_suppression=False, vad_threshold=0.5)
 
-n_models = len(owwModel.models.keys())
+n_models = len(wake_word_model.models.keys())
 
 broker = "localhost"
 port = 1883
@@ -59,41 +59,19 @@ def on_message(client, userdata, msg):
     audio = np.frombuffer(decoded_chunk, dtype=np.int16)
 
     # Feed to openWakeWord model
-    prediction = owwModel.predict(audio)
+    prediction = wake_word_model.predict(audio)
 
-    # Column titles
-    n_spaces = 16
-    output_string_header = """
-        Model Name         | Score | Wakeword Status
-        --------------------------------------
-        """
-
-    for mdl in owwModel.prediction_buffer.keys():
+    for mdl in wake_word_model.prediction_buffer.keys():
         # Add scores in formatted table
-        scores = list(owwModel.prediction_buffer[mdl])
-        curr_score = format(scores[-1], '.20f').replace("-", "")
+        scores = list(wake_word_model.prediction_buffer[mdl])
         if scores[-1] > SCORE_THRESHOLD:
+            print("Wake word detected!")
             mqtt_publish.single(topic_wakeword, True, hostname=broker, port=port)
-
-        output_string_header += f"""{mdl}{" "*(n_spaces - len(mdl))}   | {curr_score[0:5]} | {"--"+" "*20 if scores[-1] <= SCORE_THRESHOLD else "Wakeword Detected!"}
-        """
-
-    # Print results table
-    print("\033[F"*(4*n_models+1))
-    print(output_string_header, "                             ", end='\r')
 
 
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_message = on_message
 client.connect(broker, port, 60)
 client.subscribe(topic_audio)
-
-# Generate output string header
-print("\n\n")
-print("#"*100)
-print("Listening for wakewords...")
-print("#"*100)
-print("\n"*(n_models*3))
-
 client.loop_forever()
 
