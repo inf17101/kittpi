@@ -8,4 +8,5 @@ dependencies = [
     "aiomqtt",
     "kokoro-onnx",
     "numpy",
+    "sounddevice",
 ]
