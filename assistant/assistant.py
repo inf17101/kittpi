@@ -56,7 +56,7 @@ async def run_agent_on_incoming_instructions():
     assistant = Agent(
         name="Home Assistant",
         instructions="You are a helpful home assistant. Respond concise and friendly. No preamble or postamble. Do not lie. If you do not know, say it to the user.",
-        model_settings=ModelSettings(reasoning=Reasoning(effort="minimal"), verbosity="low", max_tokens=500,),
+        model_settings=ModelSettings(reasoning=Reasoning(effort="minimal"), verbosity="low", max_tokens=200,),
         model="gpt-5-nano",
         # tools=[
         #     HostedMCPTool(

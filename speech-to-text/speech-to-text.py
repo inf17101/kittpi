@@ -44,7 +44,7 @@ topic_instruction = "assistant/instruction"
 rec = KaldiRecognizer(model, args.samplerate)
 text_queue = Queue()
 wakeword_event = Event()
-SILENCE_TIME = 1
+SILENCE_TIME = 0.5
 
 def on_message(client, userdata, msg):
     msg_topic = str(msg.topic)
@@ -55,9 +55,8 @@ def on_message(client, userdata, msg):
             audio = bytes(decoded_chunk)
             if rec.AcceptWaveform(audio):
                 full_result = json.loads(rec.Result())
-                full_result = full_result["text"]
+                full_result = full_result.get("text", "")
                 if full_result:
-                    # print(full_result)
                     text_queue.put(full_result)
     elif msg_topic == topic_wakeword:
         if not wakeword_event.is_set():
