@@ -3,6 +3,7 @@ import paho.mqtt.client as mqtt
 import base64
 
 # MQTT setup
+# broker = "192.168.178.41"   # or your broker
 broker = "localhost"   # or your broker
 port = 1883
 topic = "audio/stream"

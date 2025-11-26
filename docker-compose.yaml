@@ -37,4 +37,12 @@ services:
       - mqtt
       - wake-word-detection
       - speech-to-text
+      - news-mcp
+    restart: unless-stopped
+
+  news-mcp:
+    build: ./mcp/news-mcp
+    image: news-mcp
+    container_name: news-mcp
+    network_mode: host
     restart: unless-stopped

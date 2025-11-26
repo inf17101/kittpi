@@ -1,5 +1,6 @@
 from openai.types.shared import Reasoning
-from agents import Runner, Agent, ModelSettings, SQLiteSession, HostedMCPTool
+from agents import Runner, Agent, ModelSettings, SQLiteSession
+from agents.mcp import MCPServerStreamableHttp
 from agents.extensions.memory import EncryptedSession
 from openai.types.responses import ResponseTextDeltaEvent
 from aiomqtt import Client
@@ -53,49 +54,51 @@ async def run_agent_on_incoming_instructions():
         ttl=120,
     )
 
-    assistant = Agent(
-        name="Home Assistant",
-        instructions="You are a helpful home assistant. Respond concise and friendly. No preamble or postamble. Do not lie. If you do not know, say it to the user.",
-        model_settings=ModelSettings(reasoning=Reasoning(effort="minimal"), verbosity="low", max_tokens=200,),
-        model="gpt-5-nano",
-        # tools=[
-        #     HostedMCPTool(
-        #         tool_config={
-        #             "type": "mcp",
-        #             "server_label": "tagesschau_news",
-        #             "server_url": "http://127.0.0.1:8001/news-mcp",
-        #             "require_approval": "never",
-        #         }
-        #     )
-        # ],
-    )
+    async with MCPServerStreamableHttp(
+        name="tagesschau_news",
+        params={
+            "url": "http://127.0.0.1:8001/mcp",
+            # "headers": {"Authorization": f"Bearer {token}"},
+            "timeout": 10,
+        },
+        cache_tools_list=True,
+        max_retry_attempts=10,
+    ) as server:
+        assistant = Agent(
+            name="Home Assistant",
+            instructions="You are a helpful home assistant. Speak in friendly, natural sentences optimized for text to speech, without titles, lists, special characters, or formatting. Responses should not be too short. If tool output is not in English, translate and reply fully in English. Do not lie. If you do not know, say so. Only output normal sentences ending with periods.",
+            model_settings=ModelSettings(max_tokens=200, tool_choice="required"),
+            model="gpt-4o-mini",
+            mcp_servers=[server],
+        )
 
-    async with Client(broker, port=port) as client:
-        await client.subscribe(topic_instruction)
-        print(f"Subscribed to mqtt topic '{topic_instruction}' to wait for incoming instructions.")
+        async with Client(broker, port=port) as client:
+            await client.subscribe(topic_instruction)
+            print(f"Subscribed to mqtt topic '{topic_instruction}' to wait for incoming instructions.")
 
-        async for message in client.messages:
-            user_instruction = message.payload.decode()
-            print(f"Received user instruction: '{user_instruction}'")
+            async for message in client.messages:
+                user_instruction = message.payload.decode()
+                print(f"Received user instruction: '{user_instruction}'")
 
-            try:
-                result = Runner.run_streamed(assistant, input=f"{user_instruction}\nOutput only in sentences optimzied for text-to-speech, no special characters only sentences end with dots.", session=session)
-                streamer = SentenceStreamer()
-                async for event in result.stream_events():
-                    if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
-                        chunk = event.data.delta
-                        for sentence in streamer.feed(chunk):
-                            print(f"Forwarding assistant reply to mqtt topic '{topic_reply}'.")
-                            print(f"Sentence: {sentence}")
-                            await client.publish(topic_reply, sentence)
-                # Flush leftover
-                for sentence in streamer.flush():
-                    print(f"Forwarding assistant reply to mqtt topic '{topic_reply}'.")
-                    print(f"Sentence: {sentence}")
-                    await client.publish(topic_reply, sentence)
-            except Exception as e:
-                error_reply = f"Error processing request: {e}"
-                print(f"Forwarding assistant error to mqtt topic '{topic_reply}'.")
-                await client.publish(topic_reply, error_reply)
+                try:
+                    result = Runner.run_streamed(assistant, input=f"{user_instruction}", session=session)
+                    streamer = SentenceStreamer()
+                    async for event in result.stream_events():
+                        if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                            chunk = event.data.delta
+                            for sentence in streamer.feed(chunk):
+                                print(f"Forwarding assistant reply to mqtt topic '{topic_reply}'.")
+                                print(f"Sentence: {sentence}")
+                                await client.publish(topic_reply, sentence)
+                    # Flush leftover
+                    for sentence in streamer.flush():
+                        print(f"Forwarding assistant reply to mqtt topic '{topic_reply}'.")
+                        print(f"Sentence: {sentence}")
+                        await client.publish(topic_reply, sentence)
+                except Exception as e:
+                    error_reply = f"Error processing request."
+                    print(e)
+                    print(f"Forwarding assistant error to mqtt topic '{topic_reply}'.")
+                    await client.publish(topic_reply, error_reply)
 
 asyncio.run(run_agent_on_incoming_instructions())

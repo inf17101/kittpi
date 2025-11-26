@@ -40,7 +40,7 @@ async def audio_playback_process(audio_queue: mp.Queue, stop_flag: mp.Event):
             pass
 
         if len(buffer) >= AUDIO_CHUNK_SAMPLES:
-            time.sleep(0.2)
+            time.sleep(0.4)
             to_play = buffer[:AUDIO_CHUNK_SAMPLES]
             buffer = buffer[AUDIO_CHUNK_SAMPLES:]
             stream.write(to_play)
@@ -55,10 +55,12 @@ async def audio_playback_process(audio_queue: mp.Queue, stop_flag: mp.Event):
 # --------------------------------------------------------
 async def text_to_speech(audio_queue: mp.Queue):
     async with Client(broker, port=port) as client:
-        kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
+        # kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
+        kokoro = Kokoro("kokoro-v1.0.int8.onnx", "voices-v1.0.bin")
+        # kokoro = Kokoro("kokoro-v1.0.fp16.onnx", "voices-v1.0.bin")
         samples, sample_rate = kokoro.create(WELCOME_MESSAGE,
                 voice="af_heart",
-                speed=1.0,
+                speed=0.8,
                 lang="en-us",)
         audio_queue.put((samples, sample_rate))
         await client.subscribe(topic_reply)
@@ -68,7 +70,7 @@ async def text_to_speech(audio_queue: mp.Queue):
             samples, sample_rate = kokoro.create(
                 assistant_reply,
                 voice="af_heart",
-                speed=1.0,
+                speed=0.8,
                 lang="en-us",
             )
             audio_queue.put((samples, sample_rate))
